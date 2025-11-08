@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import {
   Breadcrumb,
@@ -16,6 +17,11 @@ import {
 import { EmployeeRegistrationForm } from "@/components/EmployeeRegistrationForm"
 
 export default function RegistrarEmpleadoPage() {
+  useEffect(() => {
+    // Cambiar título de la pestaña
+    document.title = 'Registrar Empleado - Sistema de Asistencia'
+  }, [])
+
   return (
     <SidebarProvider>
       <AppSidebar />

@@ -23,16 +23,36 @@ export type Employee = {
 
 export type AttendanceFormData = Employee
 
+export type AttendanceValidation = {
+  estado: 'puntual' | 'tarde' | 'normal' | 'temprano'
+  mensaje: string
+  color: 'green' | 'yellow' | 'red' | 'blue'
+}
+
+export type AttendanceState = {
+  completado: string[]
+  pendiente: string[]
+}
+
 export type AttendanceRecord = {
-  id: string
+  id: number
+  usuario_id: number
   codigo_empleado: string
-  nombre: string
-  apellido: string
+  nombre_completo: string
   fecha: string // ISO date
-  hora_entrada: string
-  hora_salida?: string
-  tipo: 'entrada' | 'salida'
-  observaciones?: string
+  hora_entrada: string | null
+  hora_salida_almuerzo: string | null
+  hora_entrada_almuerzo: string | null
+  hora_salida: string | null
+  estado: AttendanceState
+  validaciones: {
+    entrada: AttendanceValidation
+    salida_almuerzo: AttendanceValidation
+    entrada_almuerzo: AttendanceValidation
+    salida: AttendanceValidation
+  }
+  created_at: string
+  updated_at: string
 }
 
 export type AttendanceFormErrors = {
@@ -61,6 +81,7 @@ export type EmployeeRegistrationRequest = {
   fecha_ingreso: string
   rol_id: number
   tipo_empleado?: string
+  dni: string
 }
 
 export type EmployeeType = {
@@ -83,6 +104,19 @@ export type EmployeeRegistrationResponse = {
 export type Role = {
   id: number
   nombre: string
+}
+
+export type AttendanceApiResponse = {
+  success: boolean
+  data: AttendanceRecord[]
+  total: number
+  message: string
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
 }
 
 

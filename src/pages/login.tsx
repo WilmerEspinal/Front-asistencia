@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,11 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    // Cambiar título de la pestaña
+    document.title = 'Iniciar Sesión - Sistema de Asistencia'
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -36,48 +41,34 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <Card className="shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mb-4">
-              <svg
-                className="w-8 h-8 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                />
-              </svg>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+        <Card className="shadow-lg border border-gray-200 bg-white">
+          <CardHeader className="space-y-2 text-center pb-4">
+            <div className="mx-auto w-16 h-16 mb-2 flex items-center justify-center">
+              <img
+                src="https://res.cloudinary.com/dszdc6rh8/image/upload/v1759513438/logo-salca-muni__1_-removebg-preview_dy5oxt.png"
+                alt="Logo Municipalidad"
+                className="w-full h-full object-contain"
+              />
             </div>
-            <CardTitle className="text-2xl font-bold text-gray-900">
-              Bienvenido
+            <CardTitle className="text-xl font-bold text-gray-900">
+              Sistema de Asistencia
             </CardTitle>
-            <CardDescription className="text-gray-600">
-              Inicia sesión en tu cuenta para continuar
+            <CardDescription className="text-gray-600 text-sm">
+              Municipalidad de Sacahuasi
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Mensaje de error */}
+          <CardContent className="p-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              {/* Mensaje de error simple */}
               {error && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="text-sm text-red-600">{error}</p>
-                  </div>
+                <div className="p-2 bg-red-50 border border-red-200 rounded-md">
+                  <p className="text-xs text-red-600">{error}</p>
                 </div>
               )}
 
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <Label htmlFor="username" className="text-sm font-medium text-gray-700">
                   Usuario
                 </Label>
@@ -88,13 +79,14 @@ export default function LoginPage() {
                   value={username}
                   onChange={(e) => {
                     setUsername(e.target.value)
-                    setError(null) // Limpiar error al escribir
+                    setError(null)
                   }}
-                  className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
                   required
                 />
               </div>
-              <div className="space-y-2">
+              
+              <div className="space-y-1">
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                   Contraseña
                 </Label>
@@ -105,42 +97,23 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value)
-                    setError(null) // Limpiar error al escribir
+                    setError(null)
                   }}
-                  className="h-11 border-gray-200 focus:border-blue-500 focus:ring-blue-500"
+                  className="h-10 border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm"
                   required
                 />
               </div>
+              
               <Button
                 type="submit"
-                className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium transition-all duration-200"
+                className="w-full h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm mt-4"
                 disabled={isLoading}
               >
-                {isLoading ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Iniciando sesión...</span>
-                  </div>
-                ) : (
-                  'Iniciar Sesión'
-                )}
+                {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
               </Button>
             </form>
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-500">
-                ¿Olvidaste tu contraseña?{' '}
-                <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">
-                  Recuperar aquí
-                </a>
-              </p>
-            </div>
           </CardContent>
         </Card>
-        
-        {/* Elementos decorativos */}
-        <div className="absolute top-10 left-10 w-20 h-20 bg-blue-200 rounded-full opacity-20 animate-pulse"></div>
-        <div className="absolute bottom-10 right-10 w-32 h-32 bg-indigo-200 rounded-full opacity-20 animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-5 w-16 h-16 bg-purple-200 rounded-full opacity-20 animate-pulse delay-500"></div>
       </div>
     </div>
   )

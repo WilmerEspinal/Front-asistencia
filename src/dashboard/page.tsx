@@ -27,22 +27,37 @@ export default function Page() {
   })
 
   useEffect(() => {
+    // Cambiar título de la pestaña
+    document.title = 'Dashboard - Sistema de Asistencia'
     loadStats()
   }, [])
 
   async function loadStats() {
     try {
-      // Cargar estadísticas de registros desde localStorage
-      const records = JSON.parse(localStorage.getItem('muni-asistencia:registros') || '[]')
+      // Obtener estadísticas desde la API de asistencias con paginación
+      const response = await fetch('http://localhost:3000/api/asistencias/todas?page=1&limit=7', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Error fetching attendance data')
+      }
+
+      const apiData = await response.json()
+      const records: AttendanceRecord[] = apiData.data || []
       const today = new Date().toISOString().split('T')[0]
       
-      const entradasHoy = records.filter((r: AttendanceRecord) => 
-        r.fecha === today && r.tipo === 'entrada'
-      ).length
+      // Filtrar registros de hoy
+      const recordsToday = records.filter(r => r.fecha === today)
       
-      const salidasHoy = records.filter((r: AttendanceRecord) => 
-        r.fecha === today && r.tipo === 'salida'
-      ).length
+      // Contar entradas (registros que tienen hora_entrada)
+      const entradasHoy = recordsToday.filter(r => r.hora_entrada !== null).length
+      
+      // Contar salidas (registros que tienen hora_salida)
+      const salidasHoy = recordsToday.filter(r => r.hora_salida !== null).length
 
       // Obtener total de usuarios desde la API
       const usuariosIds = await EmpleadosService.getUsuariosIds()
@@ -52,20 +67,28 @@ export default function Page() {
         totalRegistros: records.length,
         entradasHoy,
         salidasHoy,
-        empleadosRegistrados: totalUsuarios // Usar el total real desde la API
+        empleadosRegistrados: totalUsuarios
       })
     } catch (error) {
       console.error('Error loading stats:', error)
-      // Fallback a localStorage si la API falla
-      const records = JSON.parse(localStorage.getItem('muni-asistencia:registros') || '[]')
-      const employees = JSON.parse(localStorage.getItem('muni-asistencia:empleados') || '[]')
-      
-      setStats({
-        totalRegistros: records.length,
-        entradasHoy: 0,
-        salidasHoy: 0,
-        empleadosRegistrados: employees.length
-      })
+      // Fallback: usar datos básicos sin estadísticas específicas
+      try {
+        const usuariosIds = await EmpleadosService.getUsuariosIds()
+        setStats({
+          totalRegistros: 0,
+          entradasHoy: 0,
+          salidasHoy: 0,
+          empleadosRegistrados: usuariosIds.length
+        })
+      } catch (fallbackError) {
+        console.error('Error loading fallback stats:', fallbackError)
+        setStats({
+          totalRegistros: 0,
+          entradasHoy: 0,
+          salidasHoy: 0,
+          empleadosRegistrados: 0
+        })
+      }
     }
   }
 

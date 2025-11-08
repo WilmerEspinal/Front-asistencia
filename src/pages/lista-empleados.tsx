@@ -36,6 +36,8 @@ export default function ListaEmpleadosPage() {
   const [itemsPerPage] = useState(10)
 
   useEffect(() => {
+    // Cambiar título de la pestaña
+    document.title = 'Lista de Empleados - Sistema de Asistencia'
     loadEmployees()
   }, [])
 

@@ -16,7 +16,8 @@ const INITIAL_DATA: EmployeeRegistrationRequest = {
   password: '',
   fecha_ingreso: '',
   rol_id: 1,
-  tipo_empleado: ''
+  tipo_empleado: '',
+  dni: ''
 }
 
 function validate(data: EmployeeRegistrationRequest): FormErrors<EmployeeRegistrationRequest> {
@@ -24,29 +25,75 @@ function validate(data: EmployeeRegistrationRequest): FormErrors<EmployeeRegistr
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/
   const codigoRegex = /^[A-Z]{3}[0-9]{3,6}$/
-  const telefonoRegex = /^[\d\-\+\(\)\s]{7,15}$/
+  const telefonoRegex = /^\d{9}$/
 
+  // VALIDACIÓN ESTRICTA: TODOS LOS CAMPOS SON OBLIGATORIOS
   if (!data.nombre?.trim()) errors.nombre = 'El nombre es requerido'
   if (!data.apellido?.trim()) errors.apellido = 'El apellido es requerido'
-  if (!emailRegex.test(data.email)) errors.email = 'Email inválido'
-  if (data.telefono && !telefonoRegex.test(data.telefono)) errors.telefono = 'Formato de teléfono inválido'
+  if (!data.email?.trim()) {
+    errors.email = 'El email es requerido'
+  } else if (!emailRegex.test(data.email)) {
+    errors.email = 'Email inválido'
+  }
+  
+  // Teléfono ahora es obligatorio
+  if (!data.telefono?.trim()) {
+    errors.telefono = 'El teléfono es requerido'
+  } else if (data.telefono.length !== 9) {
+    errors.telefono = 'El teléfono debe tener 9 dígitos'
+  } else if (!telefonoRegex.test(data.telefono)) {
+    errors.telefono = 'El teléfono debe contener solo números'
+  }
+  
   if (!data.fecha_nacimiento) {
     errors.fecha_nacimiento = 'Fecha de nacimiento requerida'
   }
-  if (!data.tipo_empleado) errors.tipo_empleado = 'Seleccione un tipo de empleado'
-  if (data.codigo_empleado && data.codigo_empleado !== 'Generando...' && !codigoRegex.test(data.codigo_empleado)) {
+  
+  if (!data.tipo_empleado) {
+    errors.tipo_empleado = 'Seleccione un tipo de empleado'
+  }
+  
+  // Código de empleado obligatorio
+  if (!data.codigo_empleado?.trim()) {
+    errors.codigo_empleado = 'Código de empleado requerido'
+  } else if (data.codigo_empleado === 'Generando...') {
+    errors.codigo_empleado = 'Espere a que se genere el código'
+  } else if (!codigoRegex.test(data.codigo_empleado)) {
     console.log('Validation failed for code:', data.codigo_empleado)
     console.log('Regex test result:', codigoRegex.test(data.codigo_empleado))
     console.log('Code length:', data.codigo_empleado.length)
     console.log('Code characters:', data.codigo_empleado.split(''))
-    errors.codigo_empleado = 'Formato: PLA005 (3 letras + 3-6 números, mínimo 005)'
+    errors.codigo_empleado = 'Formato: PLA003 (3 letras + 3-6 números)'
   }
-  if (!usernameRegex.test(data.username)) errors.username = 'Usuario: 3-20 caracteres alfanuméricos'
-  if (!data.password || data.password.length < 6) errors.password = 'Mínimo 6 caracteres'
+  
+  if (!data.username?.trim()) {
+    errors.username = 'El usuario es requerido'
+  } else if (!usernameRegex.test(data.username)) {
+    errors.username = 'Usuario: 3-20 caracteres alfanuméricos'
+  }
+  
+  if (!data.password?.trim()) {
+    errors.password = 'La contraseña es requerida'
+  } else if (data.password.length < 6) {
+    errors.password = 'Mínimo 6 caracteres'
+  }
+  
   if (!data.fecha_ingreso) {
     errors.fecha_ingreso = 'Fecha de ingreso requerida'
   }
-  if (!data.rol_id) errors.rol_id = 'Seleccione un rol'
+  
+  if (!data.rol_id || data.rol_id === 0) {
+    errors.rol_id = 'Seleccione un rol'
+  }
+  
+  // DNI obligatorio
+  if (!data.dni?.trim()) {
+    errors.dni = 'El DNI es requerido'
+  } else if (data.dni.length !== 8) {
+    errors.dni = 'El DNI debe tener 8 dígitos'
+  } else if (!/^\d{8}$/.test(data.dni)) {
+    errors.dni = 'El DNI debe contener solo números'
+  }
 
   return errors
 }
@@ -78,6 +125,8 @@ export function EmployeeRegistrationForm() {
   const [employeeCounts, setEmployeeCounts] = useState<{[key: string]: number}>({})
   const [totalUsuarios, setTotalUsuarios] = useState<number>(0)
   const [nextUsuarioId, setNextUsuarioId] = useState<number>(0)
+  const [dni, setDni] = useState<string>('')
+  const [isLoadingReniec, setIsLoadingReniec] = useState<boolean>(false)
 
   useEffect(() => {
     loadRoles()
@@ -146,6 +195,63 @@ export function EmployeeRegistrationForm() {
     }
   }
 
+  const searchReniec = async (dniNumber: string) => {
+    if (!dniNumber || dniNumber.length !== 8) return
+    
+    setIsLoadingReniec(true)
+    let response: Response | null = null
+    
+    try {
+      const token = localStorage.getItem('auth_token')
+      response = await fetch(`http://localhost:3000/api/reniec/${dniNumber}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      
+      // Verificar si la respuesta es exitosa
+      if (!response.ok) {
+        if (response.status === 401) {
+          setMessage({
+            type: 'error',
+            text: 'No autorizado. Verifique que esté logueado correctamente.'
+          })
+          return
+        }
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const result = await response.json()
+      
+      if (result.success && result.data) {
+        // Autocompletar los campos con los datos de RENIEC
+        setData(prev => ({
+          ...prev,
+          nombre: result.data.first_name || '',
+          apellido: `${result.data.first_last_name || ''} ${result.data.second_last_name || ''}`.trim(),
+          dni: result.data.document_number || dniNumber
+        }))
+        
+        // No mostrar popup de éxito, solo autocompletar silenciosamente
+      } else {
+        setMessage({
+          type: 'error',
+          text: result.message || 'No se encontraron datos para este DNI'
+        })
+      }
+    } catch (error: any) {
+      console.error('Error searching RENIEC:', error)
+      
+      setMessage({
+        type: 'error',
+        text: 'Error al consultar RENIEC. Verifique la conexión.'
+      })
+    } finally {
+      setIsLoadingReniec(false)
+    }
+  }
+
 
   const generateEmployeeCode = async (tipoEmpleado: string): Promise<string> => {
     const employeeType = EMPLOYEE_TYPES.find(type => type.id === tipoEmpleado)
@@ -162,8 +268,8 @@ export function EmployeeRegistrationForm() {
         nextId = maxUserId + 1
       }
 
-      // Asegurar mínimo 5 para cumplir formato PLA005
-      const sequence = Math.max(nextId, 5)
+      // Usar directamente el próximo ID (sin mínimo 5)
+      const sequence = nextId
 
       // Generar el código con el siguiente número (3 dígitos)
       const paddedSequence = sequence.toString().padStart(3, '0')
@@ -177,8 +283,8 @@ export function EmployeeRegistrationForm() {
       
     } catch (error) {
       console.error('Error generating employee code:', error)
-      // Fallback: usar secuencia simple si hay error (empezar desde 5)
-      return `${employeeType.prefijo}005`
+      // Fallback: usar próximo ID si hay error
+      return `${employeeType.prefijo}${nextUsuarioId.toString().padStart(3, '0')}`
     }
   }
 
@@ -212,7 +318,9 @@ export function EmployeeRegistrationForm() {
     const validationErrors = validate(data)
     setErrors(validationErrors)
     
-    if (Object.keys(validationErrors).length > 0) return
+    if (Object.keys(validationErrors).length > 0) {
+      return
+    }
 
     setIsLoading(true)
     setMessage(null)
@@ -268,20 +376,20 @@ export function EmployeeRegistrationForm() {
 
 
   return (
-    <div className="w-full max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-semibold text-slate-800 mb-1">
+    <div className="w-full max-w-4xl mx-auto">
+      {/* Header compacto */}
+      <div className="text-center mb-4">
+        <h1 className="text-xl font-semibold text-slate-800 mb-1">
           Registro de Empleado
         </h1>
-        <p className="text-slate-500 text-sm">
+        <p className="text-slate-500 text-xs">
           Complete la información del nuevo empleado
         </p>
       </div>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-md border border-slate-200 p-6">
-        <div className="space-y-5">
+      {/* Form con diseño mejorado */}
+      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+        <div className="space-y-4">
           {/* Personal Information */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
@@ -289,54 +397,64 @@ export function EmployeeRegistrationForm() {
               <h3 className="text-base font-medium text-slate-800">Información Personal</h3>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Campo DNI compacto */}
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <label className="text-sm font-medium text-blue-800 mb-2 block">🆔 DNI * (Búsqueda RENIEC)</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={dni}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 8)
+                    setDni(value)
+                    onChange('dni', value)
+                  }}
+                  className="flex-1 px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-1 focus:border-blue-500 focus:ring-blue-500/20 text-sm"
+                  maxLength={8}
+                />
+                <button
+                  type="button"
+                  onClick={() => searchReniec(dni)}
+                  disabled={dni.length !== 8 || isLoadingReniec}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    dni.length === 8 && !isLoadingReniec
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isLoadingReniec ? '🔍' : 'Buscar'}
+                </button>
+              </div>
+              {errors.dni && (
+                <p className="text-xs text-red-600 mt-1">{errors.dni}</p>
+              )}
+            </div>
+            
+            {/* Grid de 3 columnas para mejor aprovechamiento del espacio */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <FormInput
-                label="Nombre"
+                label="👤 Nombre *"
                 value={data.nombre}
                 onChange={e => onChange('nombre', e.target.value)}
                 error={errors.nombre}
-                placeholder="Juan"
-                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
+                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 text-sm"
               />
               
               <FormInput
-                label="Apellido"
+                label="👥 Apellido *"
                 value={data.apellido}
                 onChange={e => onChange('apellido', e.target.value)}
                 error={errors.apellido}
-                placeholder="Pérez"
-                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
-              />
-            </div>
-            
-            <FormInput
-              label="Email"
-              type="email"
-              value={data.email}
-              onChange={e => onChange('email', e.target.value)}
-              error={errors.email}
-              placeholder="juan.perez@municipalidad.com"
-              className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
-            />
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormInput
-                label="Teléfono"
-                type="tel"
-                value={data.telefono}
-                onChange={e => onChange('telefono', e.target.value)}
-                error={errors.telefono}
-                placeholder="777-888-999"
-                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20"
+                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 text-sm"
               />
               
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Fecha de Nacimiento</label>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">🎂 Fecha Nacimiento *</label>
                 <input
                   type="date"
                   value={data.fecha_nacimiento}
                   onChange={e => onChange('fecha_nacimiento', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 transition-colors text-sm ${
                     errors.fecha_nacimiento 
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
                       : 'border-slate-300 focus:border-blue-500 focus:ring-blue-500/20'
@@ -344,20 +462,43 @@ export function EmployeeRegistrationForm() {
                   style={{ colorScheme: 'light' }}
                 />
                 {errors.fecha_nacimiento && (
-                  <p className="text-sm text-red-600">{errors.fecha_nacimiento}</p>
+                  <p className="text-xs text-red-600">{errors.fecha_nacimiento}</p>
                 )}
               </div>
             </div>
             
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Tipo de Empleado</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <FormInput
+                label="📧 Email *"
+                type="email"
+                value={data.email}
+                onChange={e => onChange('email', e.target.value)}
+                error={errors.email}
+                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 text-sm"
+              />
+              
+              <FormInput
+                label="📱 Teléfono *"
+                type="tel"
+                value={data.telefono}
+                onChange={e => {
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 9)
+                  onChange('telefono', value)
+                }}
+                error={errors.telefono}
+                className="border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 text-sm"
+              />
+            </div>
+            
+            <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+              <label className="text-sm font-medium text-emerald-800 mb-2 block">🏢 Tipo de Empleado *</label>
               <select
                 value={data.tipo_empleado || ''}
                 onChange={e => onChange('tipo_empleado', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 transition-colors text-sm ${
                   errors.tipo_empleado 
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
-                    : 'border-slate-300 focus:border-blue-500 focus:ring-blue-500/20'
+                    : 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20'
                 }`}
               >
                 <option value="">Seleccionar tipo</option>
@@ -365,43 +506,37 @@ export function EmployeeRegistrationForm() {
                   const count = employeeCounts[type.id] || 0
                   return (
                     <option key={type.id} value={type.id}>
-                      {type.nombre} - {type.descripcion} ({count} registros)
+                      {type.nombre} ({count} registros)
                     </option>
                   )
                 })}
               </select>
               {errors.tipo_empleado && (
-                <p className="text-sm text-red-600">{errors.tipo_empleado}</p>
+                <p className="text-xs text-red-600 mt-1">{errors.tipo_empleado}</p>
               )}
               
-              {/* Visual indicator for selected employee type */}
+              {/* Indicador inline del tipo seleccionado */}
               {data.tipo_empleado && (
-                <div className="mt-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
+                <div className="mt-2 flex items-center gap-2">
                   {(() => {
                     const selectedType = EMPLOYEE_TYPES.find(type => type.id === data.tipo_empleado)
                     if (!selectedType) return null
                     
                     const colorClasses = {
-                      blue: 'bg-blue-100 text-blue-800 border-blue-200',
-                      emerald: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                      purple: 'bg-purple-100 text-purple-800 border-purple-200',
-                      orange: 'bg-orange-100 text-orange-800 border-orange-200',
-                      teal: 'bg-teal-100 text-teal-800 border-teal-200'
+                      blue: 'bg-blue-100 text-blue-800',
+                      emerald: 'bg-emerald-100 text-emerald-800',
+                      purple: 'bg-purple-100 text-purple-800',
+                      orange: 'bg-orange-100 text-orange-800',
+                      teal: 'bg-teal-100 text-teal-800'
                     }
                     
                     return (
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-3">
-                          <div className={`px-2 py-1 rounded-full text-xs font-medium border ${colorClasses[selectedType.color as keyof typeof colorClasses]}`}>
-                            {selectedType.prefijo}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-slate-800">{selectedType.nombre}</p>
-                            <p className="text-xs text-slate-600">{selectedType.descripcion}</p>
-                          </div>
+                      <>
+                        <div className={`px-2 py-1 rounded text-xs font-medium ${colorClasses[selectedType.color as keyof typeof colorClasses]}`}>
+                          {selectedType.prefijo}
                         </div>
-                     
-                      </div>
+                        <span className="text-xs text-slate-600">{selectedType.nombre}</span>
+                      </>
                     )
                   })()}
                 </div>
@@ -410,10 +545,10 @@ export function EmployeeRegistrationForm() {
           </div>
 
           {/* Work Information */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
               <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-              <h3 className="text-base font-medium text-slate-800">Información Laboral</h3>
+              <h3 className="text-base font-medium text-slate-800">💼 Información Laboral</h3>
             </div>
             
             <div className="space-y-2">
@@ -430,7 +565,6 @@ export function EmployeeRegistrationForm() {
                         ? 'border-yellow-300 bg-yellow-50'
                         : 'border-slate-300'
                   }`}
-                  placeholder="PLA005"
                 />
                 <div className="absolute inset-y-0 right-0 flex items-center pr-3">
                   <span className={`text-xs px-2 py-1 rounded ${
@@ -457,35 +591,31 @@ export function EmployeeRegistrationForm() {
               )}
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <FormInput
-                label="Usuario"
+                label="👤 Usuario *"
                 value={data.username}
                 onChange={e => onChange('username', e.target.value.toLowerCase())}
                 error={errors.username}
-                placeholder="jperez"
-                className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20"
+                className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
               />
               
               <FormInput
-                label="Contraseña"
+                label="🔒 Contraseña *"
                 type="password"
                 value={data.password}
                 onChange={e => onChange('password', e.target.value)}
                 error={errors.password}
-                placeholder="••••••••"
-                className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20"
+                className="border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
               />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Fecha de Ingreso</label>
+              
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">📅 Fecha Ingreso *</label>
                 <input
                   type="date"
                   value={data.fecha_ingreso}
                   onChange={e => onChange('fecha_ingreso', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 transition-colors text-sm ${
                     errors.fecha_ingreso 
                       ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
                       : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20'
@@ -493,44 +623,44 @@ export function EmployeeRegistrationForm() {
                   style={{ colorScheme: 'light' }}
                 />
                 {errors.fecha_ingreso && (
-                  <p className="text-sm text-red-600">{errors.fecha_ingreso}</p>
+                  <p className="text-xs text-red-600">{errors.fecha_ingreso}</p>
                 )}
               </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Rol</label>
-                <select
-                  value={data.rol_id}
-                  onChange={e => onChange('rol_id', parseInt(e.target.value))}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                    errors.rol_id 
-                      ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
-                      : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20'
-                  }`}
-                >
-                  <option value={0}>Seleccionar rol</option>
-                  {roles.map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.nombre}
-                    </option>
-                  ))}
-                </select>
-                {errors.rol_id && (
-                  <p className="text-sm text-red-600">{errors.rol_id}</p>
-                )}
-              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">🛡️ Rol *</label>
+              <select
+                value={data.rol_id}
+                onChange={e => onChange('rol_id', parseInt(e.target.value))}
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 transition-colors text-sm ${
+                  errors.rol_id 
+                    ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' 
+                    : 'border-slate-300 focus:border-emerald-500 focus:ring-emerald-500/20'
+                }`}
+              >
+                <option value={0}>Seleccionar rol</option>
+                {roles.map(role => (
+                  <option key={role.id} value={role.id}>
+                    {role.nombre}
+                  </option>
+                ))}
+              </select>
+              {errors.rol_id && (
+                <p className="text-xs text-red-600">{errors.rol_id}</p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-center mt-6 pt-4 border-t border-slate-200">
+        {/* Actions compactas */}
+        <div className="flex justify-center mt-4 pt-3 border-t border-slate-200">
           <Button 
             type="submit" 
             disabled={isLoading}
-            className="w-full bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white font-medium py-2.5 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full max-w-md bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-700 hover:to-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
-            {isLoading ? 'Registrando...' : 'Registrar Empleado'}
+            {isLoading ? '⏳ Registrando...' : '✅ Registrar Empleado'}
           </Button>
         </div>
 
